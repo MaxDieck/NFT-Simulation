@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFT-Handelssimulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #e3f2fd;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+            margin-top: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #1565c0;
+        }
+        .profile-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .balance {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0d47a1;
+        }
+        .nft-card, .wallet-item {
+            display: flex;
+            align-items: center;
+            background: #bbdefb;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+        .nft-card img, .wallet-item img {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        .nft-info {
+            flex: 1;
+        }
+        .button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            color: #fff;
+        }
+        .buy { background: #1e88e5; }
+        .sell { background: #d32f2f; }
+        .transfer { background: #1976d2; }
+
+        /* Popup Styles */
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 400px;
+            z-index: 1000;
+        }
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+        }
+        .popup input, .popup select {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .popup .button {
+            background: #1976d2;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NFT-Handelssimulation</h1>
+
+        <div class="profile-section">
+            <h2>Profil wählen</h2>
+            <select id="profile" onchange="updateUI()">
+                <option value="Jonas">Jonas</option>
+                <option value="Raphael">Raphael</option>
+                <option value="Maximilian Dieck">Maximilian Dieck</option>
+            </select>
+            <p class="balance">Guthaben: <span id="balanceETH">20</span> ETH / <span id="balanceEUR">50000</span> €</p>
+            <p>Wallet-Adresse: <span id="walletAddress"></span></p>
+        </div>
+
+        <h2>Neues NFT erstellen</h2>
+        <input type="file" id="nftImage" accept="image/*">
+        <input type="text" id="nftName" placeholder="NFT Name">
+        <input type="number" id="nftPrice" placeholder="Preis in ETH">
+        <button class="button buy" onclick="createNFT()">NFT erstellen</button>
+
+        <h2>Marktplatz</h2>
+        <div id="marketplace"></div>
+
+        <h2>Meine Wallet</h2>
+        <div id="wallet">
+            <p>Noch keine NFTs in der Wallet.</p>
+        </div>
+    </div>
+
+    <!-- Popup for transferring NFTs -->
+    <div class="popup-overlay" id="popupOverlay"></div>
+    <div class="popup" id="popup">
+        <h2>NFT versenden</h2>
+        <label for="targetProfile">Zielprofil</label>
+        <select id="targetProfile">
+            <option value="Jonas">Jonas</option>
+            <option value="Raphael">Raphael</option>
+            <option value="Maximilian Dieck">Maximilian Dieck</option>
+        </select>
+        <label for="walletAddressInput">Wallet-Adresse</label>
+        <input type="text" id="walletAddressInput" placeholder="Wallet-Adresse des Empfängers">
+        <label for="networkSelect">Netzwerk</label>
+        <select id="networkSelect">
+            <option value="Ethereum">Ethereum</option>
+            <option value="Polygon">Polygon</option>
+            <option value="Avalanche">Avalanche</option>
+        </select>
+        <button class="button" onclick="sendNFT()">Versenden</button>
+		<p>
+        <button class="button" onclick="closePopup()">Abbrechen</button>
+    </div>
+
+    <script>
+        const ETH_TO_EUR = 2500;
+        const profiles = {
+            Jonas: { balance: 20, nfts: [], wallet: '0xJonas1234' },
+            Raphael: { balance: 20, nfts: [], wallet: '0xRaphael5678' },
+            "Maximilian Dieck": { balance: 20, nfts: [], wallet: '0xMaximilian91011' }
+        };
+
+        const marketplace = [];
+
+        function getCurrentProfile() {
+            return document.getElementById('profile').value;
+        }
+
+        function updateUI() {
+            const profile = getCurrentProfile();
+            document.getElementById('balanceETH').innerText = profiles[profile].balance.toFixed(2);
+            document.getElementById('balanceEUR').innerText = (profiles[profile].balance * ETH_TO_EUR).toFixed(2);
+            document.getElementById('walletAddress').innerText = profiles[profile].wallet;
+
+            const walletContainer = document.getElementById('wallet');
+            walletContainer.innerHTML = profiles[profile].nfts.length
+                ? profiles[profile].nfts.map(nft => `
+                    <div class="wallet-item">
+                        <img src="${nft.image}" alt="${nft.name}">
+                        <div class="nft-info">
+                            <h3>${nft.name}</h3>
+                            <p>Preis: ${nft.price} ETH / ${(nft.price * ETH_TO_EUR).toFixed(2)} €</p>
+                            <button class="button sell" onclick="sellNFT('${nft.name}')">Verkaufen</button>
+                            <button class="button transfer" onclick="openTransferPopup('${nft.name}')">Versenden</button>
+                        </div>
+                    </div>`).join('')
+                : '<p>Noch keine NFTs in der Wallet.</p>';
+
+            const marketplaceContainer = document.getElementById('marketplace');
+            marketplaceContainer.innerHTML = marketplace.map(nft => `
+                <div class="nft-card">
+                    <img src="${nft.image}" alt="${nft.name}">
+                    <div class="nft-info">
+                        <h3>${nft.name}</h3>
+                        <p>Preis: ${nft.price} ETH / ${(nft.price * ETH_TO_EUR).toFixed(2)} €</p>
+                        <button class="button buy" onclick="buyNFT('${nft.name}')">Kaufen</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function createNFT() {
+            const fileInput = document.getElementById('nftImage');
+            const name = document.getElementById('nftName').value;
+            const price = parseFloat(document.getElementById('nftPrice').value);
+
+            if (!fileInput.files[0] || !name || isNaN(price)) {
+                alert('Bitte alle Felder ausfüllen.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const image = e.target.result;
+                marketplace.push({ name, price, image });
+                updateUI();
+                alert(`${name} wurde erstellt und auf den Marktplatz gestellt.`);
+            };
+            reader.readAsDataURL(fileInput.files[0]);
+        }
+
+        function buyNFT(name) {
+            const profile = getCurrentProfile();
+            const nftIndex = marketplace.findIndex(nft => nft.name === name);
+            const nft = marketplace[nftIndex];
+            if (profiles[profile].balance >= nft.price) {
+                profiles[profile].balance -= nft.price;
+                profiles[profile].nfts.push(nft);
+                marketplace.splice(nftIndex, 1);
+                updateUI();
+                alert(`${name} wurde gekauft und in deine Wallet verschoben.`);
+            } else {
+                alert('Nicht genügend Guthaben.');
+            }
+        }
+
+        function sellNFT(name) {
+            const profile = getCurrentProfile();
+            const nftIndex = profiles[profile].nfts.findIndex(nft => nft.name === name);
+            const nft = profiles[profile].nfts[nftIndex];
+            profiles[profile].balance += nft.price;
+            marketplace.push(nft);
+            profiles[profile].nfts.splice(nftIndex, 1);
+            updateUI();
+            alert(`${name} wurde verkauft und zurück auf den Marktplatz gestellt.`);
+        }
+
+        function openTransferPopup(nftName) {
+            const popup = document.getElementById('popup');
+            const overlay = document.getElementById('popupOverlay');
+            popup.style.display = 'block';
+            overlay.style.display = 'block';
+
+            document.getElementById('targetProfile').value = getCurrentProfile(); // Set the default target profile
+            document.getElementById('walletAddressInput').value = profiles[getCurrentProfile()].wallet; // Set the wallet address
+            window.currentNFT = nftName; // Store the NFT name for transfer
+        }
+
+        function closePopup() {
+            const popup = document.getElementById('popup');
+            const overlay = document.getElementById('popupOverlay');
+            popup.style.display = 'none';
+            overlay.style.display = 'none';
+        }
+
+        function sendNFT() {
+            const targetProfile = document.getElementById('targetProfile').value;
+            const walletAddress = document.getElementById('walletAddressInput').value;
+            const network = document.getElementById('networkSelect').value;
+
+            const profile = getCurrentProfile();
+            const nftIndex = profiles[profile].nfts.findIndex(nft => nft.name === window.currentNFT);
+            const nft = profiles[profile].nfts[nftIndex];
+
+            profiles[profile].nfts.splice(nftIndex, 1);
+            profiles[targetProfile].nfts.push(nft);
+
+            closePopup();
+            updateUI();
+            alert(`NFT "${nft.name}" wurde an ${targetProfile} über das ${network}-Netzwerk versendet.`);
+        }
+
+        window.onload = updateUI;
+    </script>
+</body>
+</html>
+
+
+
